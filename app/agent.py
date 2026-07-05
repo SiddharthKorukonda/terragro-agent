@@ -12,6 +12,73 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Terragro Agent - Ambient Agricultural Assistant
+
+ARCHITECTURAL DESIGN DECISIONS:
+-------------------------------
+1. **Explicit Graph-Based Control (ADK 2.0 Workflow)**:
+   We utilize ADK 2.0's `Workflow` API to construct a deterministic graph structure.
+   Agricultural analysis requires running separate tasks in parallel: inspecting a crop
+   image and fetching localized weather. Rather than relying on non-deterministic LLM
+   orchestration (where an LLM agent decides sequentially what tools to call), our
+   graph workflow guarantees that both steps execute concurrently.
+
+2. **Strict Schema Contracts (Pydantic Models)**:
+   To eliminate model hallucinations and guarantee downstream data parsing safety,
+   all node inputs and outputs are governed by Pydantic schemas:
+   - `DiagnosisOutput`: Forces `vision_node` to categorize crop condition, severity, and findings.
+   - `RemediationPlan`: Forces the final output into structured, actionable items.
+
+3. **Model Context Protocol (MCP)**:
+   We isolate localized external APIs (like weather information) to an MCP server,
+   ensuring that credentials and API changes do not leak into the core agent code.
+
+ADK 2.0 GRAPH EDGE ROUTING:
+---------------------------
+Our graph implements a classic "Diamond Pattern" with a conditional branch exit:
+1. **Fan-Out (Concurrence)**:
+   We route the starting user trigger to both `vision_node` (visual diagnosis) and
+   `location_extractor` (weather location resolver) in parallel using the syntax:
+   `("START", (vision_node, location_extractor))`
+2. **Sequential Flow (MCP Invocation)**:
+   `location_extractor` passes its parsed location dictionary `{"location": ...}` to
+   `context_node` (the weather tool).
+3. **Fan-In (Merging)**:
+   `vision_node` and `context_node` outputs are synchronized and fanned-in using `JoinNode`.
+   The downstream node (`triage_node`) receives a combined dictionary containing the
+   outputs of both branches.
+4. **Conditional Routing**:
+   The final routing uses a `RoutingMap` dictionary mapping the `"approved"` route to
+   the final LLM agent node: `(triage_node, {"approved": remediation_node})`.
+
+HUMAN-IN-THE-LOOP (HITL) TRIAGE SAFEGUARD:
+------------------------------------------
+Agricultural remediation (e.g., advising pesticide application or heavy watering) carries
+significant real-world risks and costs. To prevent the agent from executing critical decisions
+autonomously without oversight, the `triage_node` acts as an absolute safety gate:
+- If the session's `resume_inputs` lacks the `"validation"` key, it yields a `RequestInput` event
+  containing the diagnostic and weather details and immediately halts execution.
+- The session state, variables, and progress are securely persisted in-memory or in the DB.
+- When the user verifies the information and responds (e.g., typing 'Approve'), the runner
+  re-triggers the workflow, detects the `"validation"` key, resolves the pause, and routes the
+  execution to the final `remediation_node` to build the plans.
+
+PREVENTING CONTEXT ROT & OVERFLOW:
+----------------------------------
+Long conversations with multiple iterations of crop images and weather details can lead to
+context rot, degrading the LLM's reasoning and inflating costs. We combat this using two key
+ADK mechanisms configured on the `App`:
+1. **Context Caching (`ContextCacheConfig`)**:
+   We cache our system instructions and templates. Since the prompts for plant pathology
+   and remediation are complex, caching them reduces latency and optimizes token usage.
+2. **Context Compaction (`EventsCompactionConfig`)**:
+   We configure a sliding window compaction. If the session history grows beyond 20 events,
+   the `LlmEventSummarizer` automatically condenses older exchanges into a concise summary
+   while retaining the last 3 events for continuity. This keeps the active context window clean,
+   fresh, and focused.
+"""
+
 import asyncio
 from typing import Any
 
@@ -21,7 +88,10 @@ load_dotenv()
 
 from google.adk.agents import LlmAgent
 from google.adk.agents.context import Context
+from google.adk.agents.context_cache_config import ContextCacheConfig
 from google.adk.apps import App, ResumabilityConfig
+from google.adk.apps.app import EventsCompactionConfig
+from google.adk.apps.llm_event_summarizer import LlmEventSummarizer
 from google.adk.events.event import Event
 from google.adk.events.request_input import RequestInput
 from google.adk.models import Gemini
@@ -147,6 +217,10 @@ def location_extractor(node_input: Any) -> dict:
         location = "Salinas Valley"
     elif "iowa" in query_lower or "midwest" in query_lower:
         location = "Iowa"
+    elif "seattle" in query_lower or "london" in query_lower:
+        location = "Seattle"
+    elif "phoenix" in query_lower or "sahara" in query_lower:
+        location = "Phoenix"
     elif query_text.strip():
         location = query_text.strip()
 
@@ -205,9 +279,20 @@ root_agent = Workflow(
     description="Ambient agricultural assistant with crop diagnosis, localized weather context, and human triage.",
 )
 
-# Export app with ResumabilityConfig enabled to support human-in-the-loop pausing
+# Export app with ResumabilityConfig enabled to support human-in-the-loop pausing,
+# along with context caching and context compaction to prevent context rot.
 app = App(
     root_agent=root_agent,
     name="app",
     resumability_config=ResumabilityConfig(is_resumable=True),
+    context_cache_config=ContextCacheConfig(
+        min_tokens=2048,
+        ttl_seconds=1800,
+        cache_intervals=10,
+    ),
+    events_compaction_config=EventsCompactionConfig(
+        compaction_interval=20,
+        overlap_size=3,
+        summarizer=LlmEventSummarizer(llm=Gemini(model="gemini-3.1-flash-lite")),
+    ),
 )
