@@ -1,0 +1,32 @@
+{
+  "eval_cases": [
+    {
+      "eval_case_id": "seattle_late_blight",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "I am in Seattle. My tomato crops have dark spots on their leaves. Please diagnose."}]
+      }
+    },
+    {
+      "eval_case_id": "phoenix_heat_stress",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "I am in Phoenix. My pepper plants are wilting and the leaves look scorched. Please diagnose."}]
+      }
+    },
+    {
+      "eval_case_id": "salinas_powdery_mildew",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "I am in Salinas Valley. My lettuce leaves have a white powdery growth. Please diagnose."}]
+      }
+    },
+    {
+      "eval_case_id": "iowa_healthy_corn",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "I am in Iowa. My corn field looks green and healthy. Please diagnose."}]
+      }
+    }
+  ]
+}
