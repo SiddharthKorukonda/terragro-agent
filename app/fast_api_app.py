@@ -31,9 +31,17 @@ from app.app_utils.typing import Feedback
 
 load_dotenv()
 setup_telemetry()
-_, project_id = google.auth.default()
-logging_client = google_cloud_logging.Client()
-logger = logging_client.logger(__name__)
+# Set up logger, falling back to standard python logger if GCP logging is not available
+try:
+    _, project_id = google.auth.default()
+    logging_client = google_cloud_logging.Client()
+    logger = logging_client.logger(__name__)
+except Exception as e:
+    import logging as python_logging
+    python_logging.warning(
+        f"GCP Logging Client failed to initialize: {e}. Falling back to standard python logging."
+    )
+    logger = python_logging.getLogger(__name__)
 allow_origins = (
     os.getenv("ALLOW_ORIGINS", "").split(",") if os.getenv("ALLOW_ORIGINS") else None
 )

@@ -149,13 +149,20 @@ weather_mcp_toolset = McpToolset(
     )
 )
 
-# Fetch the local weather tool synchronously at import time so we can place
-# it directly in the Workflow edge layout.
-try:
-    tools = asyncio.run(weather_mcp_toolset.get_tools())
-    context_node = tools[0]
-except Exception as e:
-    raise RuntimeError(f"Failed to load MCP weather tool: {e}")
+# Defines the weather tool execution node dynamically as an async function node
+# to avoid executing asyncio.run() at import time, preventing startup crashes.
+@node(name="get_weather")
+async def context_node(ctx: Context, node_input: Any) -> Any:
+    """Connects to MCP and calls get_weather dynamically during execution."""
+    location = node_input.get("location") if isinstance(node_input, dict) else str(node_input)
+    try:
+        tools = await weather_mcp_toolset.get_tools()
+        weather_tool = tools[0]
+        # Execute the weather tool dynamically using the run_async method
+        result = await weather_tool.run_async(args={"location": location}, tool_context=ctx)
+        return result
+    except Exception as e:
+        raise RuntimeError(f"Failed to execute MCP weather tool: {e}")
 
 
 # -----------------------------------------------------------------------------
