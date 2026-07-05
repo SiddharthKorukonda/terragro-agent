@@ -203,6 +203,7 @@ artifacts/
 
 # A2A Inspector
 tools/a2a-inspector/
+bin/
 
 # Credentials and private keys
 *.pem
