@@ -193,12 +193,14 @@ remediation_node = LlmAgent(
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=(
-        "You are an agricultural expert. Generate a detailed, structured crop "
-        "remediation plan based on the crop diagnosis, weather context, and user "
-        "validation feedback."
+        "You are a friendly, expert agricultural advisor. Ingest the crop diagnosis "
+        "(condition, severity, findings) and the localized weather conditions. "
+        "Generate a conversational, farmer-friendly treatment plan. "
+        "Do NOT output JSON, markdown tables, or structural JSON block formatting. "
+        "Instead, format the output as plain, empathetic markdown with clear bold "
+        "headers and bulleted actionable steps that a farmer can easily understand "
+        "and implement in the field."
     ),
-    output_schema=RemediationPlan,
-    output_key="remediation_plan",
 )
 
 
@@ -242,17 +244,71 @@ async def triage_node(ctx: Context, node_input: dict) -> Any:
     diagnosis = node_input.get("vision_node")
     weather = node_input.get("get_weather")
 
-    # Temporarily bypass the Human-in-the-Loop check for presentation/deployment.
-    # Yield an Event that immediately routes to the approved remediation path.
+    # Bypasses the human triage pause during automated evaluation runs to allow
+    # the LLM judge to grade the final remediation plans.
+    import os
+    if os.getenv("EVAL_RUN") == "true":
+        yield Event(
+            output={
+                "diagnosis": str(diagnosis),
+                "weather": str(weather),
+                "validation": "Auto-approved during evaluation benchmark run",
+            },
+            route="approved",
+        )
+        return
+
+    # Extract fields from structured diagnosis and weather context to present a clean UX
+    condition = "Unknown"
+    severity = "Unknown"
+    findings_str = ""
+
+    if isinstance(diagnosis, dict):
+        condition = diagnosis.get("condition", "Unknown")
+        severity = diagnosis.get("severity", "Unknown")
+        findings = diagnosis.get("findings", [])
+        if isinstance(findings, list):
+            findings_str = "\n".join(f"- {f}" for f in findings)
+    elif hasattr(diagnosis, "condition"):
+        condition = getattr(diagnosis, "condition", "Unknown")
+        severity = getattr(diagnosis, "severity", "Unknown")
+        findings = getattr(diagnosis, "findings", [])
+        if isinstance(findings, list):
+            findings_str = "\n".join(f"- {f}" for f in findings)
+    else:
+        condition = str(diagnosis)
+
+    weather_str = str(weather)
+
+    # Format into clean, bulleted Markdown prose
+    message = (
+        f"🌾 **Crop Condition Detected:** {condition}\n"
+        f"⚠️ **Severity:** {severity}\n"
+    )
+    if findings_str:
+        message += f"🔍 **Key Findings:**\n{findings_str}\n"
+
+    message += f"\n☁️ **Localized Weather Context:**\n{weather_str}\n\n"
+    message += "Please review and enter your comments or 'Approve' to proceed:"
+
+    # If the user has not yet validated the information, pause and request input.
+    if not ctx.resume_inputs or "validation" not in ctx.resume_inputs:
+        yield RequestInput(
+            interrupt_id="validation",
+            message=message,
+        )
+        return
+
+    # If validation response is present, resume and route to remediation
+    validation_response = ctx.resume_inputs["validation"]
     yield Event(
         output={
             "diagnosis": str(diagnosis),
             "weather": str(weather),
-            "validation": "Auto-approved for presentation bypass",
+            "validation": str(validation_response),
         },
         route="approved",
     )
-    return
 
 
 # -----------------------------------------------------------------------------
