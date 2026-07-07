@@ -93,6 +93,7 @@ from google.adk.apps import App, ResumabilityConfig
 from google.adk.apps.app import EventsCompactionConfig
 from google.adk.apps.llm_event_summarizer import LlmEventSummarizer
 from google.adk.events.event import Event
+from google.adk.events.event_actions import EventActions
 from google.adk.events.request_input import RequestInput
 from google.adk.models import Gemini
 from google.adk.tools.mcp_tool import McpToolset
@@ -308,7 +309,7 @@ async def triage_node(ctx: Context, node_input: dict) -> Any:
                 "weather": weather_str,
                 "validation": "Auto-approved during evaluation benchmark run",
             },
-            route="approved",
+            actions=EventActions(route="approved"),
         )
         return
 
@@ -339,7 +340,7 @@ async def triage_node(ctx: Context, node_input: dict) -> Any:
             "weather": weather_str,
             "validation": str(validation_response),
         },
-        route="approved",
+        actions=EventActions(route="approved"),
     )
 
 
