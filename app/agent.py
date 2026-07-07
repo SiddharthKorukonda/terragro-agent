@@ -303,14 +303,16 @@ async def triage_node(ctx: Context, node_input: dict) -> Any:
     # the LLM judge to grade the final remediation plans.
     import os
     if os.getenv("EVAL_RUN") == "true":
-        yield Event(
+        event = Event(
             output={
                 "diagnosis": str(diagnosis),
                 "weather": weather_str,
                 "validation": "Auto-approved during evaluation benchmark run",
             },
-            actions=EventActions(route="approved"),
+            route="approved",
         )
+        print(f"[DEBUG EVAL] event.actions.route: {event.actions.route}")
+        yield event
         return
 
     # Format into clean, bulleted Markdown prose
@@ -335,18 +337,16 @@ async def triage_node(ctx: Context, node_input: dict) -> Any:
 
     # If validation response is present, resume and route to remediation
     validation_response = ctx.resume_inputs["validation"]
-    yield Event(
+    event = Event(
         output={
             "diagnosis": str(diagnosis),
             "weather": weather_str,
             "validation": str(validation_response),
         },
-        actions=EventActions(route="approved"),
+        route="approved",
     )
-    yield Event(
-        message="Validation complete. Proceeding to remediation.",
-        actions=EventActions(route="approved"),
-    )
+    print(f"[DEBUG RESUME] event.actions.route: {event.actions.route}")
+    yield event
 
 
 # -----------------------------------------------------------------------------
