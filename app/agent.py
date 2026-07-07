@@ -329,6 +329,7 @@ async def triage_node(ctx: Context, node_input: dict) -> Any:
         yield RequestInput(
             interrupt_id="validation",
             message=message,
+            response_schema=str,
         )
         return
 
