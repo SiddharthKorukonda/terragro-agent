@@ -159,8 +159,19 @@ async def context_node(ctx: Context, node_input: Any) -> Any:
         tools = await weather_mcp_toolset.get_tools()
         weather_tool = tools[0]
         # Execute the weather tool dynamically using the run_async method
-        result = await weather_tool.run_async(args={"location": location}, tool_context=ctx)
-        return result
+        raw_result = await weather_tool.run_async(args={"location": location}, tool_context=ctx)
+
+        # Extract and parse the flattened dictionary from the MCP response content
+        if isinstance(raw_result, dict) and "content" in raw_result:
+            content_list = raw_result["content"]
+            if content_list and isinstance(content_list, list):
+                text_content = content_list[0].get("text", "{}")
+                try:
+                    import json
+                    return json.loads(text_content)
+                except Exception:
+                    pass
+        return raw_result
     except Exception as e:
         raise RuntimeError(f"Failed to execute MCP weather tool: {e}")
 
@@ -244,20 +255,6 @@ async def triage_node(ctx: Context, node_input: dict) -> Any:
     diagnosis = node_input.get("vision_node")
     weather = node_input.get("get_weather")
 
-    # Bypasses the human triage pause during automated evaluation runs to allow
-    # the LLM judge to grade the final remediation plans.
-    import os
-    if os.getenv("EVAL_RUN") == "true":
-        yield Event(
-            output={
-                "diagnosis": str(diagnosis),
-                "weather": str(weather),
-                "validation": "Auto-approved during evaluation benchmark run",
-            },
-            route="approved",
-        )
-        return
-
     # Extract fields from structured diagnosis and weather context to present a clean UX
     condition = "Unknown"
     severity = "Unknown"
@@ -278,7 +275,42 @@ async def triage_node(ctx: Context, node_input: dict) -> Any:
     else:
         condition = str(diagnosis)
 
-    weather_str = str(weather)
+    # Format weather dictionary into clean Markdown prose
+    weather_str = "No weather context available"
+    if isinstance(weather, dict):
+        region = weather.get("region_type", "Unknown Region")
+        temp = weather.get("temperature_f", "N/A")
+        humidity = weather.get("humidity_pct", "N/A")
+        rain_prob = weather.get("rain_probability_pct", "N/A")
+        soil_temp = weather.get("soil_temperature_f", "N/A")
+        wind = weather.get("wind_speed_mph", "N/A")
+        impact = weather.get("agricultural_impact", "None")
+
+        weather_str = (
+            f"📍 **Region:** {region}\n"
+            f"- **Temperature:** {temp}°F\n"
+            f"- **Humidity:** {humidity}%\n"
+            f"- **Rain Probability:** {rain_prob}%\n"
+            f"- **Soil Temperature:** {soil_temp}°F\n"
+            f"- **Wind Speed:** {wind} mph\n"
+            f"- **Agricultural Impact:** {impact}"
+        )
+    else:
+        weather_str = str(weather)
+
+    # Bypasses the human triage pause during automated evaluation runs to allow
+    # the LLM judge to grade the final remediation plans.
+    import os
+    if os.getenv("EVAL_RUN") == "true":
+        yield Event(
+            output={
+                "diagnosis": str(diagnosis),
+                "weather": weather_str,
+                "validation": "Auto-approved during evaluation benchmark run",
+            },
+            route="approved",
+        )
+        return
 
     # Format into clean, bulleted Markdown prose
     message = (
@@ -304,7 +336,7 @@ async def triage_node(ctx: Context, node_input: dict) -> Any:
     yield Event(
         output={
             "diagnosis": str(diagnosis),
-            "weather": str(weather),
+            "weather": weather_str,
             "validation": str(validation_response),
         },
         route="approved",

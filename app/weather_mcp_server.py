@@ -43,7 +43,7 @@ from fastmcp import FastMCP
 mcp = FastMCP("WeatherService")
 
 @mcp.tool()
-def get_weather(location: str) -> str:
+def get_weather(location: str) -> dict:
     """Get the weather and atmospheric context for a specific location.
 
     This tool is used to retrieve temperature, humidity, rain probability,
@@ -57,63 +57,63 @@ def get_weather(location: str) -> str:
 
     # 1. Rainy / High Humidity Regions (e.g., Seattle, London)
     if any(city in loc_lower for city in ["seattle", "london", "rainy"]):
-        return (
-            "Current Weather for Rainy/Humid Region:\n"
-            "- Temperature: 54°F (Cool)\n"
-            "- Humidity: 92% (Very High - Fog & Drizzle)\n"
-            "- Rain Probability: 85% (Continuous wet conditions)\n"
-            "- Soil Temperature: 52°F (Cold, saturated soil)\n"
-            "- Wind: 10 mph SW\n"
-            "- AGRICULTURAL IMPACT: High risk of foliar fungal pathogens (e.g., Late Blight, Downy Mildew)."
-        )
+        return {
+            "region_type": "Rainy/Humid Region",
+            "temperature_f": 54,
+            "humidity_pct": 92,
+            "rain_probability_pct": 85,
+            "soil_temperature_f": 52,
+            "wind_speed_mph": 10,
+            "agricultural_impact": "High risk of foliar fungal pathogens (e.g., Late Blight, Downy Mildew)."
+        }
 
     # 2. Arid / Extreme Heat Regions (e.g., Phoenix, Sahara)
     elif any(city in loc_lower for city in ["phoenix", "sahara", "desert", "arid"]):
-        return (
-            "Current Weather for Arid/Desert Region:\n"
-            "- Temperature: 104°F (Extreme Heat)\n"
-            "- Humidity: 12% (Extremely Low)\n"
-            "- Rain Probability: 0% (Drought conditions)\n"
-            "- Soil Temperature: 89°F (Very Hot, dry topsoil)\n"
-            "- Wind: 15 mph E\n"
-            "- AGRICULTURAL IMPACT: High risk of heat stress, drought wilting, and spider mite proliferation."
-        )
+        return {
+            "region_type": "Arid/Desert Region",
+            "temperature_f": 104,
+            "humidity_pct": 12,
+            "rain_probability_pct": 0,
+            "soil_temperature_f": 89,
+            "wind_speed_mph": 15,
+            "agricultural_impact": "High risk of heat stress, drought wilting, and spider mite proliferation."
+        }
 
     # 3. Coastal California (e.g., Salinas Valley)
     elif any(city in loc_lower for city in ["salinas", "california", "coastal"]):
-        return (
-            "Current Weather for Salinas Valley:\n"
-            "- Temperature: 64°F (Mild, overcast start)\n"
-            "- Humidity: 85% (High coastal dampness)\n"
-            "- Rain Probability: 5% (Mostly dry)\n"
-            "- Soil Temperature: 59°F (Cooler)\n"
-            "- Wind: 12 mph NW (Foggy coastal breeze)\n"
-            "- AGRICULTURAL IMPACT: Moderate risk of powdery mildew due to persistent morning fog."
-        )
+        return {
+            "region_type": "Salinas Valley",
+            "temperature_f": 64,
+            "humidity_pct": 85,
+            "rain_probability_pct": 5,
+            "soil_temperature_f": 59,
+            "wind_speed_mph": 12,
+            "agricultural_impact": "Moderate risk of powdery mildew due to persistent morning fog."
+        }
 
     # 4. Midwest Corn Belt (e.g., Iowa)
     elif any(city in loc_lower for city in ["iowa", "midwest", "corn"]):
-        return (
-            "Current Weather for Iowa Region:\n"
-            "- Temperature: 82°F (Warm)\n"
-            "- Humidity: 65% (Moderate-High)\n"
-            "- Rain Probability: 15% (Dry conditions)\n"
-            "- Soil Temperature: 71°F (Favorable)\n"
-            "- Wind: 8 mph SE\n"
-            "- AGRICULTURAL IMPACT: Excellent growth conditions; monitor for root rot if dampness increases."
-        )
+        return {
+            "region_type": "Iowa Region",
+            "temperature_f": 82,
+            "humidity_pct": 65,
+            "rain_probability_pct": 15,
+            "soil_temperature_f": 71,
+            "wind_speed_mph": 8,
+            "agricultural_impact": "Excellent growth conditions; monitor for root rot if dampness increases."
+        }
 
     # 5. Default General Weather
     else:
-        return (
-            f"General Weather for {location}:\n"
-            "- Temperature: 72°F (Mild)\n"
-            "- Humidity: 50% (Moderate)\n"
-            "- Rain Probability: 20% (Low chance of light rain)\n"
-            "- Soil Temperature: 65°F (Normal)\n"
-            "- Wind: 5 mph\n"
-            "- AGRICULTURAL IMPACT: Standard growing conditions."
-        )
+        return {
+            "region_type": f"General Weather for {location}",
+            "temperature_f": 72,
+            "humidity_pct": 50,
+            "rain_probability_pct": 20,
+            "soil_temperature_f": 65,
+            "wind_speed_mph": 5,
+            "agricultural_impact": "Standard growing conditions."
+        }
 
 if __name__ == "__main__":
     mcp.run()
