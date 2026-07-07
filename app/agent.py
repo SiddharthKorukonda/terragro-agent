@@ -248,9 +248,10 @@ def location_extractor(node_input: Any) -> dict:
     return {"location": location}
 
 
-@node(name="triage_node")
+@node(name="triage_node", rerun_on_resume=True)
 async def triage_node(ctx: Context, node_input: dict) -> Any:
     """Pauses execution via RequestInput for human validation of crop/weather context."""
+    print(f"[DEBUG] triage_node called, resume_inputs={ctx.resume_inputs}")
     # node_input is the merged output from JoinNode:
     # {"vision_node": ..., "get_weather": ...}
     diagnosis = node_input.get("vision_node")
