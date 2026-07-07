@@ -342,6 +342,10 @@ async def triage_node(ctx: Context, node_input: dict) -> Any:
         },
         actions=EventActions(route="approved"),
     )
+    yield Event(
+        message="Validation complete. Proceeding to remediation.",
+        actions=EventActions(route="approved"),
+    )
 
 
 # -----------------------------------------------------------------------------
